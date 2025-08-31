@@ -16,8 +16,16 @@ function showAlert(message, type = 'success') {
     alert.className = `alert alert-${type}`;
     alert.style.display = 'block';
     
+    // 使用 requestAnimationFrame 确保显示后再添加动画
+    requestAnimationFrame(() => {
+        alert.style.transform = 'translateY(0)';
+    });
+    
     setTimeout(() => {
-        alert.style.display = 'none';
+        alert.style.transform = 'translateY(-100%)';
+        setTimeout(() => {
+            alert.style.display = 'none';
+        }, 300);
     }, 3000);
 }
 
@@ -51,6 +59,9 @@ function updateClassroom() {
         // 创建座位容器
         const seatsContainer = document.createElement('div');
         seatsContainer.className = 'classroom-row-seats';
+        // 动态设置列数，每2列座位为一组
+        const seatGroupsCount = Math.ceil(cols / 2);
+        seatsContainer.style.gridTemplateColumns = `repeat(${seatGroupsCount}, 1fr)`;
         
         for (let j = 0; j < cols; j += 2) {
             const seatGroup = document.createElement('div');
@@ -515,6 +526,9 @@ function updateClassroomDisplay() {
         // 创建座位容器
         const seatsContainer = document.createElement('div');
         seatsContainer.className = 'classroom-row-seats';
+        // 动态设置列数，每2列座位为一组
+        const seatGroupsCount = Math.ceil(cols / 2);
+        seatsContainer.style.gridTemplateColumns = `repeat(${seatGroupsCount}, 1fr)`;
         
         for (let j = 0; j < cols; j += 2) {
             const seatGroup = document.createElement('div');
