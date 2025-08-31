@@ -206,6 +206,7 @@ function updateClassroom() {
                 const seat1 = document.createElement('div');
                 seat1.className = 'seat empty';
                 seat1.textContent = `${i + 1}-${j + 1}`;
+                seat1.title = '点击安排学生';
                 seat1.onclick = () => toggleSeat(i, j);
                 seatGroup.appendChild(seat1);
                 classroom[i][j] = null;
@@ -215,6 +216,7 @@ function updateClassroom() {
                     const seat2 = document.createElement('div');
                     seat2.className = 'seat empty';
                     seat2.textContent = `${i + 1}-${j + 2}`;
+                    seat2.title = '点击安排学生';
                     seat2.onclick = () => toggleSeat(i, j + 1);
                     seatGroup.appendChild(seat2);
                     classroom[i][j + 1] = null;
@@ -263,23 +265,25 @@ function rebuildClassroom() {
             const seatGroup = document.createElement('div');
             seatGroup.className = 'seat-group';
             
-            // 第一列座位
-            const seat1 = document.createElement('div');
-            seat1.className = 'seat empty';
-            seat1.textContent = `${i + 1}-${j + 1}`;
-            seat1.onclick = () => toggleSeat(i, j);
-            seatGroup.appendChild(seat1);
-            classroom[i][j] = null;
-            
-            // 第二列座位（同桌）
-            if (j + 1 < cols) {
-                const seat2 = document.createElement('div');
-                seat2.className = 'seat empty';
-                seat2.textContent = `${i + 1}-${j + 2}`;
-                seat2.onclick = () => toggleSeat(i, j + 1);
-                seatGroup.appendChild(seat2);
-                classroom[i][j + 1] = null;
-            }
+                            // 第一列座位
+                const seat1 = document.createElement('div');
+                seat1.className = 'seat empty';
+                seat1.textContent = `${i + 1}-${j + 1}`;
+                seat1.title = '点击安排学生';
+                seat1.onclick = () => toggleSeat(i, j);
+                seatGroup.appendChild(seat1);
+                classroom[i][j] = null;
+                
+                // 第二列座位（同桌）
+                if (j + 1 < cols) {
+                    const seat2 = document.createElement('div');
+                    seat2.className = 'seat empty';
+                    seat2.textContent = `${i + 1}-${j + 2}`;
+                    seat2.title = '点击安排学生';
+                    seat2.onclick = () => toggleSeat(i, j + 1);
+                    seatGroup.appendChild(seat2);
+                    classroom[i][j + 1] = null;
+                }
             
             seatsContainer.appendChild(seatGroup);
         }
@@ -292,12 +296,28 @@ function rebuildClassroom() {
     saveToLocalStorage(); // 保存到localStorage
 }
 
-// 切换座位状态
+// 清空特定座位
+function clearSeat(row, col) {
+    if (!classroom[row][col]) {
+        showAlert('该座位本来就是空的', 'info');
+        return;
+    }
+    
+    const student = classroom[row][col];
+    if (confirm(`确定要清空座位 ${row + 1}-${col + 1} 的学生 ${student.name} 吗？`)) {
+        classroom[row][col] = null;
+        updateSeatDisplay(row, col);
+        saveToLocalStorage();
+        showAlert(`已清空座位 ${row + 1}-${col + 1}`, 'success');
+    }
+}
+
+// 安排学生到座位
 function toggleSeat(row, col) {
     if (classroom[row][col]) {
         // 如果座位有人，显示提示信息
         const currentStudent = classroom[row][col];
-        showAlert(`座位已被 ${currentStudent.name} 占用`, 'info');
+        showAlert(`座位已被 ${currentStudent.name} 占用，无法修改。如需调整请先清空该学生`, 'info');
         return;
     } else {
         // 如果座位为空，可以选择学生
@@ -306,34 +326,185 @@ function toggleSeat(row, col) {
             return;
         }
         
-        const studentName = prompt('请输入要安排到该座位的学生姓名：');
-        if (studentName) {
-            const student = students.find(s => s.name === studentName.trim());
-            if (student) {
-                // 检查学生是否已经在其他座位
-                let isAlreadySeated = false;
-                for (let i = 0; i < rows; i++) {
-                    for (let j = 0; j < cols; j++) {
-                        if (classroom[i][j] && classroom[i][j].name === student.name) {
-                            isAlreadySeated = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (isAlreadySeated) {
-                    showAlert(`学生 ${student.name} 已经在其他座位了`, 'error');
-                } else {
-                    classroom[row][col] = student;
-                    updateSeatDisplay(row, col);
-                    saveToLocalStorage(); // 保存到localStorage
-                    showAlert(`学生 ${student.name} 已安排到该座位`, 'success');
-                }
-            } else {
-                showAlert('未找到该学生', 'error');
+        // 获取未安排的学生列表
+        const unseatedStudents = getUnseatedStudents();
+        if (unseatedStudents.length === 0) {
+            showAlert('所有学生都已被安排到座位', 'info');
+            return;
+        }
+        
+        // 创建下拉选择框
+        showStudentSelector(row, col, unseatedStudents);
+    }
+}
+
+// 获取未安排到座位的学生列表
+function getUnseatedStudents() {
+    const seatedStudentNames = [];
+    
+    // 收集所有已安排到座位的学生姓名
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            if (classroom[i][j]) {
+                seatedStudentNames.push(classroom[i][j].name);
             }
         }
     }
+    
+    // 返回未安排到座位的学生
+    return students.filter(student => !seatedStudentNames.includes(student.name));
+}
+
+// 显示学生选择器
+function showStudentSelector(row, col, unseatedStudents) {
+    // 创建模态框背景
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    `;
+    
+    // 创建选择框容器
+    const selector = document.createElement('div');
+    selector.style.cssText = `
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        min-width: 300px;
+        max-width: 400px;
+    `;
+    
+    // 创建标题
+    const title = document.createElement('h3');
+    title.textContent = `选择要安排到座位 ${row + 1}-${col + 1} 的学生`;
+    title.style.cssText = `
+        margin: 0 0 15px 0;
+        color: #333;
+        font-size: 16px;
+        text-align: center;
+    `;
+    
+    // 创建下拉选择框
+    const select = document.createElement('select');
+    select.style.cssText = `
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        margin-bottom: 15px;
+    `;
+    
+    // 添加默认选项
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = '请选择学生';
+    select.appendChild(defaultOption);
+    
+    // 添加学生选项
+    unseatedStudents.forEach(student => {
+        const option = document.createElement('option');
+        option.value = student.name;
+        option.textContent = `${student.name} (${student.gender})`;
+        select.appendChild(option);
+    });
+    
+    // 创建按钮容器
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    `;
+    
+    // 创建确定按钮
+    const confirmBtn = document.createElement('button');
+    confirmBtn.textContent = '确定';
+    confirmBtn.style.cssText = `
+        padding: 8px 20px;
+        background: #4facfe;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    `;
+    
+    // 创建取消按钮
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.cssText = `
+        padding: 8px 20px;
+        background: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    `;
+    
+    // 添加按钮到容器
+    buttonContainer.appendChild(confirmBtn);
+    buttonContainer.appendChild(cancelBtn);
+    
+    // 组装选择器
+    selector.appendChild(title);
+    selector.appendChild(select);
+    selector.appendChild(buttonContainer);
+    
+    // 添加到模态框
+    modal.appendChild(selector);
+    document.body.appendChild(modal);
+    
+    // 绑定事件
+    confirmBtn.onclick = () => {
+        const selectedStudentName = select.value;
+        if (!selectedStudentName) {
+            showAlert('请选择一个学生', 'error');
+            return;
+        }
+        
+        const student = students.find(s => s.name === selectedStudentName);
+        if (student) {
+            classroom[row][col] = student;
+            updateSeatDisplay(row, col);
+            saveToLocalStorage();
+            showAlert(`学生 ${student.name} 已安排到该座位`, 'success');
+        }
+        
+        // 关闭模态框
+        document.body.removeChild(modal);
+    };
+    
+    cancelBtn.onclick = () => {
+        document.body.removeChild(modal);
+    };
+    
+    // 点击背景关闭模态框
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    };
+    
+    // 按ESC键关闭模态框
+    document.addEventListener('keydown', function closeOnEsc(e) {
+        if (e.key === 'Escape') {
+            if (document.body.contains(modal)) {
+                document.body.removeChild(modal);
+            }
+            document.removeEventListener('keydown', closeOnEsc);
+        }
+    });
 }
 
 // 从Excel导入数据
@@ -725,7 +896,7 @@ function updateSeatDisplay(row, col) {
     if (classroom[row][col]) {
         seat.className = 'seat occupied';
         seat.textContent = classroom[row][col].name;
-        seat.title = `${classroom[row][col].name} (${classroom[row][col].gender})`;
+        seat.title = `${classroom[row][col].name} (${classroom[row][col].gender}) - 右键清空座位`;
         
         // 移除之前的性别样式
         seat.classList.remove('male', 'female');
@@ -736,11 +907,20 @@ function updateSeatDisplay(row, col) {
         } else if (classroom[row][col].gender === '女') {
             seat.classList.add('female');
         }
+        
+        // 为已占用座位添加右键清空功能
+        seat.oncontextmenu = (e) => {
+            e.preventDefault();
+            clearSeat(row, col);
+        };
     } else {
         seat.className = 'seat empty';
         seat.textContent = `${row + 1}-${col + 1}`;
-        seat.title = '';
+        seat.title = '点击安排学生';
         seat.classList.remove('male', 'female');
+        
+        // 移除右键事件
+        seat.oncontextmenu = null;
     }
     
     // 重新绑定点击事件
@@ -772,16 +952,22 @@ function updateClassroomDisplay() {
             if (classroom[i][j]) {
                 seat1.className = 'seat occupied';
                 seat1.textContent = classroom[i][j].name;
-                seat1.title = `${classroom[i][j].name} (${classroom[i][j].gender})`;
+                seat1.title = `${classroom[i][j].name} (${classroom[i][j].gender}) - 右键清空座位`;
                 // 添加性别样式
                 if (classroom[i][j].gender === '男') {
                     seat1.classList.add('male');
                 } else if (classroom[i][j].gender === '女') {
                     seat1.classList.add('female');
                 }
+                // 为已占用座位添加右键清空功能
+                seat1.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    clearSeat(i, j);
+                };
             } else {
                 seat1.className = 'seat empty';
                 seat1.textContent = `${i + 1}-${j + 1}`;
+                seat1.title = '点击安排学生';
             }
             seat1.onclick = () => toggleSeat(i, j);
             seatGroup.appendChild(seat1);
@@ -792,16 +978,22 @@ function updateClassroomDisplay() {
                 if (classroom[i][j + 1]) {
                     seat2.className = 'seat occupied';
                     seat2.textContent = classroom[i][j + 1].name;
-                    seat2.title = `${classroom[i][j + 1].name} (${classroom[i][j + 1].gender})`;
+                    seat2.title = `${classroom[i][j + 1].name} (${classroom[i][j + 1].gender}) - 右键清空座位`;
                     // 添加性别样式
                     if (classroom[i][j + 1].gender === '男') {
                         seat2.classList.add('male');
                     } else if (classroom[i][j + 1].gender === '女') {
                         seat2.classList.add('female');
                     }
+                    // 为已占用座位添加右键清空功能
+                    seat2.oncontextmenu = (e) => {
+                        e.preventDefault();
+                        clearSeat(i, j + 1);
+                    };
                 } else {
                     seat2.className = 'seat empty';
                     seat2.textContent = `${i + 1}-${j + 2}`;
+                    seat2.title = '点击安排学生';
                 }
                 seat2.onclick = () => toggleSeat(i, j + 1);
                 seatGroup.appendChild(seat2);
