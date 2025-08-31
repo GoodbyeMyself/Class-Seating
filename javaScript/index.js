@@ -5,9 +5,135 @@ let cols = 8;
 
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
+    loadFromLocalStorage();
     updateClassroom();
+    
+    // 如果有排座数据，恢复排座显示
+    if (classroom.length > 0) {
+        updateClassroomDisplay();
+    }
+    
     updateStats();
+    
+    // 如果有缓存数据，显示提示
+    const savedData = localStorage.getItem('classSeatingData');
+    if (savedData) {
+        try {
+            const data = JSON.parse(savedData);
+            if (data.students && data.students.length > 0) {
+                showAlert(`已从缓存恢复 ${data.students.length} 名学生和排座数据`, 'info');
+            }
+        } catch (error) {
+            console.error('解析缓存数据失败:', error);
+        }
+    }
 });
+
+// 保存数据到localStorage
+function saveToLocalStorage() {
+    try {
+        const data = {
+            students: students,
+            classroom: classroom,
+            rows: rows,
+            cols: cols,
+            timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('classSeatingData', JSON.stringify(data));
+        
+        // 调试信息：显示保存的数据
+        let seatCount = 0;
+        for (let i = 0; i < classroom.length; i++) {
+            for (let j = 0; j < classroom[i].length; j++) {
+                if (classroom[i][j]) seatCount++;
+            }
+        }
+        console.log(`数据已保存到localStorage: ${students.length}名学生, ${seatCount}个座位, ${rows}行×${cols}列`);
+    } catch (error) {
+        console.error('保存到localStorage失败:', error);
+    }
+}
+
+// 从localStorage加载数据
+function loadFromLocalStorage() {
+    try {
+        const savedData = localStorage.getItem('classSeatingData');
+        if (savedData) {
+            const data = JSON.parse(savedData);
+            
+            // 检查数据是否过期（7天）
+            const savedTime = new Date(data.timestamp);
+            const now = new Date();
+            const daysDiff = (now - savedTime) / (1000 * 60 * 60 * 24);
+            
+            if (daysDiff > 7) {
+                console.log('缓存数据已过期，清除旧数据');
+                localStorage.removeItem('classSeatingData');
+                return;
+            }
+            
+            // 恢复数据
+            if (data.students && Array.isArray(data.students)) {
+                students = data.students;
+                console.log(`从localStorage恢复了 ${students.length} 名学生`);
+            }
+            
+            if (data.classroom && Array.isArray(data.classroom)) {
+                classroom = data.classroom;
+                
+                // 统计恢复的排座数据
+                let seatCount = 0;
+                for (let i = 0; i < classroom.length; i++) {
+                    for (let j = 0; j < classroom[i].length; j++) {
+                        if (classroom[i][j]) seatCount++;
+                    }
+                }
+                console.log(`从localStorage恢复了排座数据: ${seatCount}个座位`);
+            }
+            
+            if (data.rows && data.cols) {
+                rows = data.rows;
+                cols = data.cols;
+                
+                // 更新输入框的值
+                const rowsInput = document.getElementById('rows');
+                const colsInput = document.getElementById('cols');
+                if (rowsInput) rowsInput.value = rows;
+                if (colsInput) colsInput.value = cols;
+                
+                console.log(`从localStorage恢复了教室布局: ${rows}行 × ${cols}列`);
+            }
+            
+            // 如果有学生数据，更新学生列表显示
+            if (students.length > 0) {
+                updateStudentsList();
+            }
+            
+            // 如果有排座数据，更新教室显示
+            if (data.classroom && Array.isArray(data.classroom) && data.classroom.length > 0) {
+                // 检查是否有实际的排座数据（不是空的）
+                let hasSeatingData = false;
+                for (let i = 0; i < data.classroom.length; i++) {
+                    for (let j = 0; j < data.classroom[i].length; j++) {
+                        if (data.classroom[i][j]) {
+                            hasSeatingData = true;
+                            break;
+                        }
+                    }
+                    if (hasSeatingData) break;
+                }
+                
+                if (hasSeatingData) {
+                    console.log('检测到排座数据，将在updateClassroom后恢复');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('从localStorage加载数据失败:', error);
+        // 如果加载失败，清除可能损坏的数据
+        localStorage.removeItem('classSeatingData');
+    }
+}
 
 // 显示提示信息
 function showAlert(message, type = 'success') {
@@ -43,11 +169,81 @@ function updateStats() {
 
 // 更新教室布局
 function updateClassroom() {
-    rows = parseInt(document.getElementById('rows').value);
-    cols = parseInt(document.getElementById('cols').value);
+    const newRows = parseInt(document.getElementById('rows').value);
+    const newCols = parseInt(document.getElementById('cols').value);
+    
+    // 检查是否需要重新创建布局
+    const needsRebuild = newRows !== rows || newCols !== cols;
+    
+    if (needsRebuild) {
+        rows = newRows;
+        cols = newCols;
+        
+        const classroomDiv = document.getElementById('classroom');
+        classroomDiv.innerHTML = '';
+        
+        // 如果布局改变了，清空排座数据
+        classroom = [];
+        
+        // 创建新的教室布局结构
+        for (let i = 0; i < rows; i++) {
+            classroom[i] = [];
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'classroom-row';
+            
+            // 创建座位容器
+            const seatsContainer = document.createElement('div');
+            seatsContainer.className = 'classroom-row-seats';
+            // 动态设置列数，每2列座位为一组
+            const seatGroupsCount = Math.ceil(cols / 2);
+            seatsContainer.style.gridTemplateColumns = `repeat(${seatGroupsCount}, 1fr)`;
+            
+            for (let j = 0; j < cols; j += 2) {
+                const seatGroup = document.createElement('div');
+                seatGroup.className = 'seat-group';
+                
+                // 第一列座位
+                const seat1 = document.createElement('div');
+                seat1.className = 'seat empty';
+                seat1.textContent = `${i + 1}-${j + 1}`;
+                seat1.onclick = () => toggleSeat(i, j);
+                seatGroup.appendChild(seat1);
+                classroom[i][j] = null;
+                
+                // 第二列座位（同桌）
+                if (j + 1 < cols) {
+                    const seat2 = document.createElement('div');
+                    seat2.className = 'seat empty';
+                    seat2.textContent = `${i + 1}-${j + 2}`;
+                    seat2.onclick = () => toggleSeat(i, j + 1);
+                    seatGroup.appendChild(seat2);
+                    classroom[i][j + 1] = null;
+                }
+                
+                seatsContainer.appendChild(seatGroup);
+            }
+            
+            rowDiv.appendChild(seatsContainer);
+            classroomDiv.appendChild(rowDiv);
+        }
+        
+        updateStats();
+        saveToLocalStorage(); // 保存到localStorage
+    }
+}
+
+// 强制重建教室布局（用于手动更新布局按钮）
+function rebuildClassroom() {
+    const newRows = parseInt(document.getElementById('rows').value);
+    const newCols = parseInt(document.getElementById('cols').value);
+    
+    rows = newRows;
+    cols = newCols;
     
     const classroomDiv = document.getElementById('classroom');
     classroomDiv.innerHTML = '';
+    
+    // 清空排座数据
     classroom = [];
     
     // 创建新的教室布局结构
@@ -93,6 +289,7 @@ function updateClassroom() {
     }
     
     updateStats();
+    saveToLocalStorage(); // 保存到localStorage
 }
 
 // 切换座位状态
@@ -129,6 +326,7 @@ function toggleSeat(row, col) {
                 } else {
                     classroom[row][col] = student;
                     updateSeatDisplay(row, col);
+                    saveToLocalStorage(); // 保存到localStorage
                     showAlert(`学生 ${student.name} 已安排到该座位`, 'success');
                 }
             } else {
@@ -221,6 +419,7 @@ function importStudentList(jsonData) {
         
         updateStudentsList();
         updateStats();
+        saveToLocalStorage(); // 保存到localStorage
     } else {
         showAlert('Excel文件中没有找到有效数据', 'error');
     }
@@ -296,6 +495,7 @@ function importSeatingChart(jsonData) {
         } else {
             showAlert(`成功导入排座表，安排了 ${seatCount} 个座位`, 'success');
         }
+        saveToLocalStorage(); // 保存到localStorage
     } else {
         showAlert('排座表中没有找到有效的座位数据', 'error');
     }
@@ -359,6 +559,7 @@ function addStudent() {
     students.push({ name, gender });
     updateStudentsList();
     updateStats();
+    saveToLocalStorage(); // 保存到localStorage
     
     // 清空输入框
     document.getElementById('studentName').value = '';
@@ -404,6 +605,7 @@ function removeStudent(index) {
                 }
             }
         }
+        saveToLocalStorage(); // 保存到localStorage
         showAlert(`已删除学生：${student.name}`, 'success');
     }
 }
@@ -427,7 +629,37 @@ function clearAllStudents() {
                 updateSeatDisplay(i, j);
             }
         }
+        saveToLocalStorage(); // 保存到localStorage
         showAlert('已清空所有学生数据', 'success');
+    }
+}
+
+// 清除localStorage缓存
+function clearLocalStorage() {
+    if (confirm('确定要清除所有缓存数据吗？\n\n这将清除：\n• 学生名单\n• 排座结果\n• 教室布局设置\n\n此操作不可恢复！')) {
+        try {
+            localStorage.removeItem('classSeatingData');
+            students = [];
+            classroom = [];
+            rows = 5;
+            cols = 8;
+            
+            // 重置输入框
+            const rowsInput = document.getElementById('rows');
+            const colsInput = document.getElementById('cols');
+            if (rowsInput) rowsInput.value = rows;
+            if (colsInput) colsInput.value = cols;
+            
+            // 强制重建教室布局
+            rebuildClassroom();
+            updateStudentsList();
+            updateStats();
+            
+            showAlert('已清除所有缓存数据，页面已重置', 'success');
+        } catch (error) {
+            console.error('清除localStorage失败:', error);
+            showAlert('清除缓存失败，请手动刷新页面', 'error');
+        }
     }
 }
 
@@ -464,6 +696,7 @@ function autoArrange() {
     
     // 更新显示
     updateClassroomDisplay();
+    saveToLocalStorage(); // 保存到localStorage
     showAlert('自动排座完成！', 'success');
 }
 
@@ -580,6 +813,9 @@ function updateClassroomDisplay() {
         rowDiv.appendChild(seatsContainer);
         classroomDiv.appendChild(rowDiv);
     }
+    
+    // 保存到localStorage
+    saveToLocalStorage();
 }
 
 // 导出排座图
