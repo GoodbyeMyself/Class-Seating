@@ -87,9 +87,10 @@ function updateClassroom() {
 // 切换座位状态
 function toggleSeat(row, col) {
     if (classroom[row][col]) {
-        // 如果座位有人，清空座位
-        classroom[row][col] = null;
-        updateClassroomDisplay();
+        // 如果座位有人，显示提示信息
+        const currentStudent = classroom[row][col];
+        showAlert(`座位已被 ${currentStudent.name} 占用`, 'info');
+        return;
     } else {
         // 如果座位为空，可以选择学生
         if (students.length === 0) {
@@ -99,10 +100,26 @@ function toggleSeat(row, col) {
         
         const studentName = prompt('请输入要安排到该座位的学生姓名：');
         if (studentName) {
-            const student = students.find(s => s.name === studentName);
+            const student = students.find(s => s.name === studentName.trim());
             if (student) {
-                classroom[row][col] = student;
-                updateClassroomDisplay();
+                // 检查学生是否已经在其他座位
+                let isAlreadySeated = false;
+                for (let i = 0; i < rows; i++) {
+                    for (let j = 0; j < cols; j++) {
+                        if (classroom[i][j] && classroom[i][j].name === student.name) {
+                            isAlreadySeated = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (isAlreadySeated) {
+                    showAlert(`学生 ${student.name} 已经在其他座位了`, 'error');
+                } else {
+                    classroom[row][col] = student;
+                    updateSeatDisplay(row, col);
+                    showAlert(`学生 ${student.name} 已安排到该座位`, 'success');
+                }
             } else {
                 showAlert('未找到该学生', 'error');
             }
@@ -216,11 +233,10 @@ function removeStudent(index) {
             for (let j = 0; j < cols; j++) {
                 if (classroom[i][j] && classroom[i][j].name === student.name) {
                     classroom[i][j] = null;
+                    updateSeatDisplay(i, j);
                 }
             }
         }
-        
-        updateClassroomDisplay();
         showAlert(`已删除学生：${student.name}`, 'success');
     }
 }
@@ -241,10 +257,9 @@ function clearAllStudents() {
         for (let i = 0; i < rows; i++) {
             for (let j = 0; j < cols; j++) {
                 classroom[i][j] = null;
+                updateSeatDisplay(i, j);
             }
         }
-        
-        updateClassroomDisplay();
         showAlert('已清空所有学生数据', 'success');
     }
 }
@@ -283,6 +298,53 @@ function autoArrange() {
     // 更新显示
     updateClassroomDisplay();
     showAlert('自动排座完成！', 'success');
+}
+
+// 更新特定座位的显示
+function updateSeatDisplay(row, col) {
+    const classroomDiv = document.getElementById('classroom');
+    if (!classroomDiv) return;
+    
+    const rowDiv = classroomDiv.children[row];
+    if (!rowDiv) return;
+    
+    const seatsContainer = rowDiv.querySelector('.classroom-row-seats');
+    if (!seatsContainer) return;
+    
+    // 计算座位在座位组中的位置
+    const seatGroupIndex = Math.floor(col / 2);
+    const seatGroup = seatsContainer.children[seatGroupIndex];
+    if (!seatGroup) return;
+    
+    // 确定是座位组中的第一个还是第二个座位
+    const isFirstSeat = col % 2 === 0;
+    const seat = isFirstSeat ? seatGroup.children[0] : seatGroup.children[1];
+    
+    if (!seat) return;
+    
+    if (classroom[row][col]) {
+        seat.className = 'seat occupied';
+        seat.textContent = classroom[row][col].name;
+        seat.title = `${classroom[row][col].name} (${classroom[row][col].gender})`;
+        
+        // 移除之前的性别样式
+        seat.classList.remove('male', 'female');
+        
+        // 添加性别样式
+        if (classroom[row][col].gender === '男') {
+            seat.classList.add('male');
+        } else if (classroom[row][col].gender === '女') {
+            seat.classList.add('female');
+        }
+    } else {
+        seat.className = 'seat empty';
+        seat.textContent = `${row + 1}-${col + 1}`;
+        seat.title = '';
+        seat.classList.remove('male', 'female');
+    }
+    
+    // 重新绑定点击事件
+    seat.onclick = () => toggleSeat(row, col);
 }
 
 // 更新教室显示
