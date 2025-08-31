@@ -145,26 +145,20 @@ function importFromExcel() {
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
             
-            const newStudents = [];
-            for (let i = 1; i < jsonData.length; i++) { // 跳过标题行
-                const row = jsonData[i];
-                if (row[0] && row[1]) {
-                    newStudents.push({
-                        name: row[0].toString().trim(),
-                        gender: row[1].toString().trim()
-                    });
-                }
+            // 检查是否是排座表格式（包含行/列标题）
+            const isSeatingChart = jsonData.length > 0 && jsonData[0] && jsonData[0][0] === '行/列';
+            
+            if (isSeatingChart) {
+                // 导入排座表格式
+                showAlert('检测到排座表格式，正在导入座位安排...', 'info');
+                importSeatingChart(jsonData);
+            } else {
+                // 导入学生名单格式
+                showAlert('检测到学生名单格式，正在导入学生信息...', 'info');
+                importStudentList(jsonData);
             }
             
-            if (newStudents.length > 0) {
-                students = [...students, ...newStudents];
-                updateStudentsList();
-                updateStats();
-                showAlert(`成功导入 ${newStudents.length} 名学生`, 'success');
-                fileInput.value = '';
-            } else {
-                showAlert('Excel文件中没有找到有效数据', 'error');
-            }
+            fileInput.value = '';
         } catch (error) {
             showAlert('Excel文件读取失败，请检查文件格式', 'error');
             console.error(error);
@@ -172,6 +166,168 @@ function importFromExcel() {
     };
     
     reader.readAsArrayBuffer(file);
+}
+
+// 导入学生名单格式
+function importStudentList(jsonData) {
+    const newStudents = [];
+    for (let i = 1; i < jsonData.length; i++) { // 跳过标题行
+        const row = jsonData[i];
+        if (row[0] && row[1]) {
+            newStudents.push({
+                name: row[0].toString().trim(),
+                gender: row[1].toString().trim()
+            });
+        }
+    }
+    
+    if (newStudents.length > 0) {
+        // 检查是否已存在学生列表
+        if (students.length > 0) {
+            const choice = confirm(`当前已有 ${students.length} 名学生，是否要清空现有学生列表并导入新的 ${newStudents.length} 名学生？\n\n点击"确定"清空现有列表并导入新学生\n点击"取消"将新学生添加到现有列表中`);
+            
+            if (choice) {
+                // 清空现有学生列表和教室
+                students = [];
+                for (let i = 0; i < rows; i++) {
+                    for (let j = 0; j < cols; j++) {
+                        classroom[i][j] = null;
+                    }
+                }
+                students = [...newStudents];
+                updateClassroomDisplay();
+                showAlert(`已清空现有学生列表，成功导入 ${newStudents.length} 名新学生`, 'success');
+            } else {
+                // 添加到现有列表
+                students = [...students, ...newStudents];
+                showAlert(`已将 ${newStudents.length} 名新学生添加到现有列表中`, 'success');
+            }
+        } else {
+            // 没有现有学生，直接导入
+            students = [...newStudents];
+            showAlert(`成功导入 ${newStudents.length} 名学生`, 'success');
+        }
+        
+        updateStudentsList();
+        updateStats();
+    } else {
+        showAlert('Excel文件中没有找到有效数据', 'error');
+    }
+}
+
+// 导入排座表格式
+function importSeatingChart(jsonData) {
+    // 检查是否已存在学生列表
+    if (students.length > 0) {
+        const choice = confirm(`当前已有 ${students.length} 名学生，导入排座表将清空现有学生列表和座位安排。\n\n是否继续导入？\n\n点击"确定"清空现有数据并导入排座表\n点击"取消"取消导入操作`);
+        
+        if (!choice) {
+            showAlert('已取消导入排座表', 'info');
+            return;
+        }
+    }
+    
+    // 清空当前教室和学生列表
+    students = [];
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            classroom[i][j] = null;
+        }
+    }
+    
+    // 从排座表数据中提取学生信息并安排座位
+    let importedStudents = [];
+    let seatCount = 0;
+    
+    // 跳过标题行，从第2行开始读取座位数据
+    for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (row && row[0] && row[0].includes('行')) {
+            // 这是座位行
+            const rowIndex = i - 1; // 实际行索引
+            
+            for (let j = 1; j < row.length && j <= cols; j++) {
+                const cellValue = row[j];
+                if (cellValue && cellValue !== '空座位' && !cellValue.includes('行') && !cellValue.includes('列')) {
+                    // 提取学生姓名和性别
+                    const studentInfo = parseStudentInfo(cellValue);
+                    if (studentInfo) {
+                        // 检查学生是否已存在，如果不存在则添加到学生列表
+                        let existingStudent = students.find(s => s.name === studentInfo.name);
+                        if (!existingStudent) {
+                            students.push(studentInfo);
+                            importedStudents.push(studentInfo);
+                        } else {
+                            // 使用已存在的学生信息
+                            studentInfo.gender = existingStudent.gender;
+                        }
+                        
+                        // 安排到座位
+                        const colIndex = j - 1; // 实际列索引
+                        if (rowIndex < rows && colIndex < cols) {
+                            classroom[rowIndex][colIndex] = studentInfo;
+                            seatCount++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (seatCount > 0) {
+        // 更新显示
+        updateStudentsList();
+        updateStats();
+        updateClassroomDisplay();
+        
+        if (importedStudents.length > 0) {
+            showAlert(`成功导入排座表，安排了 ${seatCount} 个座位，新增 ${importedStudents.length} 名学生`, 'success');
+        } else {
+            showAlert(`成功导入排座表，安排了 ${seatCount} 个座位`, 'success');
+        }
+    } else {
+        showAlert('排座表中没有找到有效的座位数据', 'error');
+    }
+}
+
+// 解析学生信息
+function parseStudentInfo(cellValue) {
+    if (!cellValue || typeof cellValue !== 'string') return null;
+    
+    // 处理换行符分隔的格式：姓名\n(性别)
+    const lines = cellValue.split('\n');
+    if (lines.length >= 2) {
+        const name = lines[0].trim();
+        const genderMatch = lines[1].match(/\(([男女])\)/);
+        if (name && genderMatch) {
+            return {
+                name: name,
+                gender: genderMatch[1]
+            };
+        }
+    }
+    
+    // 如果没有换行符，尝试其他格式
+    const genderMatch = cellValue.match(/\(([男女])\)/);
+    if (genderMatch) {
+        const name = cellValue.replace(/\([男女]\)/, '').trim();
+        if (name) {
+            return {
+                name: name,
+                gender: genderMatch[1]
+            };
+        }
+    }
+    
+    // 如果只包含姓名，默认设置为男性（可以根据需要调整）
+    if (cellValue.trim()) {
+        return {
+            name: cellValue.trim(),
+            gender: '男' // 默认性别
+        };
+    }
+    
+    return null;
 }
 
 // 手动添加学生
