@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天府新区第八小学班级排座系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="./css/index.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 天府新区第八小学班级排座系统</h1>
+            <p>智能排座，让每个孩子都有最佳学习位置</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 左侧配置面板 -->
+            <div class="left-panel">
+                <!-- 统计信息 -->
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalStudents">0</div>
+                        <div class="stat-label">总学生数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="seatsCount">36</div>
+                        <div class="stat-label">座位数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="maleStudents">0</div>
+                        <div class="stat-label">男生</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="femaleStudents">0</div>
+                        <div class="stat-label">女生</div>
+                    </div>
+                </div>
+
+                <!-- 提示信息 -->
+                <div id="alert" class="alert"></div>
+
+                <!-- Excel导入 -->
+                <div class="section">
+                    <h2>📊 Excel导入</h2>
+                    <p style="margin-bottom: 15px; color: #666; font-size: 13px;">
+                        第一列：学生姓名，第二列：性别（男/女）
+                    </p>
+                    <div class="file-input">
+                        <input type="file" id="excelFile" accept=".xlsx,.xls" onchange="importFromExcel()" />
+                        <div>
+                            <i style="font-size: 20px; color: #4facfe;">📁</i>
+                            <p style="margin-top: 8px; font-size: 13px;">选择Excel文件即可自动导入</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 手动添加学生 -->
+                <div class="section">
+                    <h2>✏️ 添加学生</h2>
+                    <div class="form-group">
+                        <label for="studentName">学生姓名</label>
+                        <input type="text" id="studentName" placeholder="请输入学生姓名" />
+                    </div>
+                    <div class="form-group">
+                        <label for="studentGender">性别</label>
+                        <select id="studentGender">
+                            <option value="">请选择性别</option>
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success" onclick="addStudent()">添加学生</button>
+                </div>
+
+                <!-- 学生列表 -->
+                <div class="section">
+                    <h2>👥 学生列表</h2>
+                    <div class="students-list" id="studentsList">
+                        <p style="text-align: center; color: #999; padding: 15px; font-size: 13px;">暂无学生数据</p>
+                    </div>
+                    <button class="btn btn-danger" onclick="clearAllStudents()" style="width: 100%;">清空所有学生</button>
+                </div>
+
+                <!-- 排座设置 -->
+                <div class="section">
+                    <h2>⚙️ 排座设置</h2>
+                    <div class="form-group">
+                        <label for="rows">行数</label>
+                        <input type="number" id="rows" value="5" min="1" max="10" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cols">列数</label>
+                        <input type="number" id="cols" value="8" min="1" max="12" />
+                    </div>
+                    <button class="btn" onclick="updateClassroom()" style="width: 100%; margin-bottom: 10px;">更新布局</button>
+                </div>
+            </div>
+
+            <!-- 右侧排座展示面板 -->
+            <div class="right-panel">
+                <div class="classroom-header">
+                    <div class="classroom-title">🏫 教室排座图</div>
+                    <div class="classroom-controls">
+                        <button class="btn btn-success" onclick="autoArrange()">自动排座</button>
+                        <button class="btn" onclick="exportSeatingChart()">导出座位布局表</button>
+                        <button class="btn btn-success" onclick="printSeatingChart()">打印排座图</button>
+                    </div>
+                </div>
+                
+                <div class="classroom" id="classroom"></div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h3 style="margin-bottom: 10px; color: #333;">📋 排座说明</h3>
+                    <ul style="color: #666; font-size: 14px; line-height: 1.6;">
+                        <li>点击座位可手动调整学生位置</li>
+                        <li>蓝色座位表示男生，粉色座位表示女生</li>
+                        <li>虚线座位表示空闲</li>
+                        <li>使用右上角"自动排座"功能可随机分配座位</li>
+                        <li>支持导出座位布局Excel表和打印排座结果</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./javaScript/index.js"></script>
+</body>
+</html>
